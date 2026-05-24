@@ -1,0 +1,60 @@
+version: '3.9'
+
+# Development overrides — merged on top of docker-compose.yml via:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: builder
+    command: sh -c "pnpm db:generate && pnpm start:dev"
+    working_dir: /app/apps/api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://petid:${POSTGRES_PASSWORD:-petid_dev_password}@postgres:5432/petid
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_password}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev_access_secret_change_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+      STORAGE_PROVIDER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: petid-assets
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+      AWS_REGION: us-east-1
+      ALLOWED_ORIGINS: http://localhost:3001
+      FRONTEND_URL: http://localhost:3001
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./apps/api/prisma:/app/apps/api/prisma
+    ports:
+      - '3000:3000'
+      - '9229:9229'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    command: pnpm dev
+    working_dir: /app/apps/web
+    environment:
+      NODE_ENV: development
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev_nextauth_secret_change_in_production}
+      INTERNAL_API_URL: http://api:3000/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+    ports:
+      - '3001:3001'
+
+  mailhog:
+    profiles: []
