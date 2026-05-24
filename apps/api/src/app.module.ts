@@ -1,11 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bullmq';
+import { Reflector } from '@nestjs/core';
 import * as redisStore from 'cache-manager-ioredis';
+
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -17,6 +19,17 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { AdminModule } from './modules/admin/admin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
+import { QueueModule } from './modules/queue/queue.module';
+import { GatewayModule } from './modules/gateway/gateway.module';
+import { UploadModule } from './modules/upload/upload.module';
+
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AppThrottlerGuard } from './common/guards/throttler.guard';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
@@ -26,6 +39,7 @@ import stripeConfig from './config/stripe.config';
 
 @Module({
   imports: [
+    // ── Config (global) ────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, databaseConfig, jwtConfig, redisConfig, storageConfig, stripeConfig],
@@ -33,17 +47,27 @@ import stripeConfig from './config/stripe.config';
       cache: true,
     }),
 
+    // ── Rate limiting ──────────────────────────────────────────────
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      useFactory: () => ({
         throttlers: [
-          { name: 'short', ttl: 1000, limit: 10 },
-          { name: 'medium', ttl: 60000, limit: 100 },
-          { name: 'long', ttl: 3600000, limit: 1000 },
+          // Very tight for auth endpoints (configured per-route with @Throttle)
+          { name: 'short',  ttl: 1_000,       limit: 10   },
+          // General API: 100 req/min per IP
+          { name: 'medium', ttl: 60_000,       limit: 100  },
+          // Sustained: 1000 req/hour per IP
+          { name: 'long',   ttl: 3_600_000,    limit: 1000 },
         ],
+        skipIf: (ctx) => {
+          // Skip throttling for health checks
+          const req = ctx.switchToHttp().getRequest();
+          return req.url?.includes('/health');
+        },
       }),
     }),
 
+    // ── Redis cache (global) ───────────────────────────────────────
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
@@ -56,6 +80,7 @@ import stripeConfig from './config/stripe.config';
       }),
     }),
 
+    // ── BullMQ (global connection) ─────────────────────────────────
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -64,13 +89,23 @@ import stripeConfig from './config/stripe.config';
           port: config.get('redis.port'),
           password: config.get('redis.password'),
         },
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: { count: 100 },
+          removeOnFail: { count: 500 },
+        },
       }),
     }),
 
-    EventEmitterModule.forRoot({ wildcard: true }),
+    EventEmitterModule.forRoot({ wildcard: true, maxListeners: 20 }),
     ScheduleModule.forRoot(),
 
+    // ── Feature modules ────────────────────────────────────────────
     DatabaseModule,
+    QueueModule,
+    GatewayModule,
+    UploadModule,
     AuthModule,
     UsersModule,
     PetsModule,
@@ -81,6 +116,19 @@ import stripeConfig from './config/stripe.config';
     AdminModule,
     NotificationsModule,
     HealthModule,
+  ],
+  providers: [
+    // ── Global guards (applied to every route) ─────────────────────
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
+
+    // ── Global filter (all exceptions) ────────────────────────────
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+
+    // ── Global interceptors ────────────────────────────────────────
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

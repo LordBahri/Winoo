@@ -1,10 +1,12 @@
+import { Injectable } from '@nestjs/common';
 import {
-  Injectable,
-  UnauthorizedException,
+  ApiException,
   ConflictException,
-  BadRequestException,
+  UnauthorizedException,
   ForbiddenException,
-} from '@nestjs/common';
+} from '../../common/exceptions/api.exception';
+import { ErrorCodes } from '../../common/exceptions/error-codes';
+import { HttpStatus } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -32,7 +34,7 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existing) throw new ConflictException(ErrorCodes.EMAIL_ALREADY_EXISTS, 'Email already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const user = await this.prisma.user.create({
@@ -54,14 +56,16 @@ export class AuthService {
     });
 
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(ErrorCodes.INVALID_CREDENTIALS, 'Invalid email or password');
     }
     if (user.isBanned) {
-      throw new ForbiddenException('Account suspended');
+      throw new ForbiddenException('Your account has been suspended. Contact support.');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) {
+      throw new UnauthorizedException(ErrorCodes.INVALID_CREDENTIALS, 'Invalid email or password');
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -88,7 +92,7 @@ export class AuthService {
           data: { isRevoked: true },
         });
       }
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(ErrorCodes.INVALID_REFRESH_TOKEN, 'Refresh token is invalid or expired');
     }
 
     // Rotate: revoke old, issue new in same family
@@ -129,7 +133,11 @@ export class AuthService {
     });
 
     if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new ApiException({
+        code: ErrorCodes.INVALID_RESET_TOKEN,
+        message: 'This reset link has expired or already been used',
+        statusCode: HttpStatus.BAD_REQUEST,
+      });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);

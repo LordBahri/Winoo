@@ -1,4 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ScanEventsController } from './scan-events.controller';
+import { ScanEventsService } from './scan-events.service';
 
-@Module({})
+@Module({
+  controllers: [ScanEventsController],
+  providers: [ScanEventsService],
+  exports: [ScanEventsService],
+})
 export class ScanEventsModule {}

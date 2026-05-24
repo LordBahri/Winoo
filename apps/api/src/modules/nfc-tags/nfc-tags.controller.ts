@@ -10,7 +10,9 @@ import {
   HttpStatus,
   Ip,
   Headers,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { NfcTagsService } from './nfc-tags.service';
@@ -19,6 +21,7 @@ import { ScanEventDto } from './dto/scan-event.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthUser } from '../../common/types/auth-user.type';
 
 @ApiTags('NFC Tags')
@@ -26,11 +29,13 @@ import { AuthUser } from '../../common/types/auth-user.type';
 export class NfcTagsController {
   constructor(private readonly nfcTagsService: NfcTagsService) {}
 
-  // ── Public: resolve tag → pet profile ──────────────────────────
+  // ── Public: resolve tag → pet profile (cached 30 s) ───────────
   @Public()
   @Get(':uid')
   @Throttle({ medium: { limit: 30, ttl: 60000 } })
-  @ApiOperation({ summary: 'PUBLIC — resolve NFC tag to pet public profile' })
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(30_000)
+  @ApiOperation({ summary: 'PUBLIC — resolve NFC tag to pet public profile (cached 30s)' })
   resolveTag(@Param('uid') uid: string) {
     return this.nfcTagsService.resolveTag(uid);
   }
