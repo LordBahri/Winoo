@@ -12,7 +12,7 @@ export class ScanEventsService {
     const { page = 1, limit = 20, petId, tagUid, from, to } = query;
     const skip = (page - 1) * limit;
 
-    const isAdmin = [Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role);
+    const isAdmin = ([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role);
 
     const where: Record<string, unknown> = {
       ...(tagUid && { tagUid }),

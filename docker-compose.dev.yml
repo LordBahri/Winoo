@@ -6,8 +6,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-      target: builder
-    command: sh -c "pnpm db:generate && pnpm start:dev"
+      target: dev
     working_dir: /app/apps/api
     environment:
       NODE_ENV: development

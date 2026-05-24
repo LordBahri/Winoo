@@ -153,7 +153,7 @@ export class LostPetsService {
     const report = await this.prisma.lostPetReport.findUnique({ where: { id } });
     if (!report) throw new NotFoundException('Report not found');
 
-    const isAdmin = [Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role);
+    const isAdmin = ([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role);
     if (!isAdmin && report.reportedById !== user.id) {
       throw new ForbiddenException('Access denied');
     }

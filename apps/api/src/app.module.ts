@@ -1,4 +1,5 @@
-import { Module, APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';

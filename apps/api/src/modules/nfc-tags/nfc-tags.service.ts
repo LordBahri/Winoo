@@ -135,10 +135,11 @@ export class NfcTagsService {
   async linkTag(user: AuthUser, dto: LinkTagDto) {
     const pet = await this.prisma.pet.findUnique({
       where: { id: dto.petId, deletedAt: null },
+      include: { nfcTag: true },
     });
 
     if (!pet) throw new NotFoundException('Pet not found');
-    if (pet.ownerId !== user.id && ![Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role)) {
+    if (pet.ownerId !== user.id && !([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role)) {
       throw new ForbiddenException('Access denied');
     }
     if (pet.nfcTag) throw new BadRequestException('Pet already has a tag linked');
@@ -179,7 +180,7 @@ export class NfcTagsService {
 
     if (!tag) throw new NotFoundException('Tag not found');
 
-    const isAdmin = [Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role);
+    const isAdmin = ([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role);
     if (!isAdmin && tag.pet?.ownerId !== user.id) {
       throw new ForbiddenException('Access denied');
     }
@@ -198,7 +199,7 @@ export class NfcTagsService {
 
     if (!tag) throw new NotFoundException('Tag not found');
 
-    const isAdmin = [Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role);
+    const isAdmin = ([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role);
     if (!isAdmin && tag.pet?.ownerId !== user.id) {
       throw new ForbiddenException('Access denied');
     }

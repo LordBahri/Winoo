@@ -22,13 +22,14 @@ export class AdminService {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
+    const wsConnections = this.gateway.getConnectedCount();
+
     const [
       totalUsers, newUsersToday, newUsersMonth, newUsersLastMonth,
       totalPets, lostPets, newPetsMonth,
       totalTags, activeTags, unlinkedTags,
       scansToday, scansMonth,
       activeSubscriptions, mrr,
-      wsConnections,
     ] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.user.count({ where: { createdAt: { gte: startOfDay }, deletedAt: null } }),
@@ -49,7 +50,6 @@ export class AdminService {
         JOIN subscription_plans sp ON sp.id = us.plan_id
         WHERE us.status = 'ACTIVE'
       `,
-      Promise.resolve(this.gateway.getConnectedCount()),
     ]);
 
     const userGrowthPct =

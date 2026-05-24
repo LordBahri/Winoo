@@ -1,8 +1,27 @@
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+# ── Development stage (hot-reload, no build step) ─────────────────
+FROM base AS dev
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/ ./packages/
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/api/ ./apps/api/
+
+WORKDIR /app/apps/api
+RUN pnpm db:generate
+
+EXPOSE 3000 9229
+CMD ["pnpm", "start:dev"]
+
+# ── Builder stage ──────────────────────────────────────────────────
+FROM base AS builder
+WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY apps/api/package.json ./apps/api/
@@ -16,7 +35,7 @@ WORKDIR /app/apps/api
 RUN pnpm db:generate
 RUN pnpm build
 
-# Production stage
+# ── Production runner ──────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
 

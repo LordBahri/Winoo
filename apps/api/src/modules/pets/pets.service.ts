@@ -171,7 +171,7 @@ export class PetsService {
   }
 
   private assertAccess(ownerId: string, user: AuthUser) {
-    const isAdmin = [Role.ADMIN, Role.SUPER_ADMIN].includes(user.role as Role);
+    const isAdmin = ([Role.ADMIN, Role.SUPER_ADMIN] as Role[]).includes(user.role as Role);
     if (!isAdmin && ownerId !== user.id) {
       throw new ForbiddenException('Access denied');
     }
