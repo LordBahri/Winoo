@@ -1,50 +1,50 @@
 import { create } from 'zustand';
 import { api } from '../services/api.service';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatarUrl: string | null;
-  role: string;
-}
+import type { User } from '../types';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: { email: string; password: string; name: string }) => Promise<void>;
+  error: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string, phone?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
+  clearError: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  error: null,
 
   login: async (email, password) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const res = await api.post<{ accessToken: string }>('/auth/login', { email, password });
       api.setToken(res.accessToken);
       const user = await api.get<User>('/users/me');
-      set({ user, isAuthenticated: true });
-    } finally {
-      set({ isLoading: false });
+      set({ user, isAuthenticated: true, isLoading: false });
+      return true;
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message ?? 'Login failed' });
+      return false;
     }
   },
 
-  register: async (data) => {
-    set({ isLoading: true });
+  register: async (email, password, name, phone) => {
+    set({ isLoading: true, error: null });
     try {
-      const res = await api.post<{ accessToken: string }>('/auth/register', data);
+      const res = await api.post<{ accessToken: string }>('/auth/register', { email, password, name, phone });
       api.setToken(res.accessToken);
       const user = await api.get<User>('/users/me');
-      set({ user, isAuthenticated: true });
-    } finally {
-      set({ isLoading: false });
+      set({ user, isAuthenticated: true, isLoading: false });
+      return true;
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message ?? 'Registration failed' });
+      return false;
     }
   },
 
@@ -53,17 +53,20 @@ export const useAuthStore = create<AuthState>((set) => ({
       await api.post('/auth/logout');
     } finally {
       api.setToken(null);
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, error: null });
     }
   },
 
   loadUser: async () => {
+    set({ isLoading: true });
     await api.init();
     try {
       const user = await api.get<User>('/users/me');
-      set({ user, isAuthenticated: true });
+      set({ user, isAuthenticated: true, isLoading: false });
     } catch {
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
+
+  clearError: () => set({ error: null }),
 }));

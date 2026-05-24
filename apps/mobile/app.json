@@ -1,0 +1,89 @@
+{
+  "expo": {
+    "name": "PetID",
+    "slug": "petid",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A84FF"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.petid.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "PetID uses NFC to scan and register pet identification tags.",
+        "NSLocationWhenInUseUsageDescription": "PetID uses your location when scanning lost pet tags to help reunite pets with their owners.",
+        "NSCameraUsageDescription": "PetID needs camera access to add photos of your pets.",
+        "NSPhotoLibraryUsageDescription": "PetID needs photo library access to select pet photos.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["NDEF", "TAG"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A84FF"
+      },
+      "package": "com.petid.app",
+      "versionCode": 1,
+      "permissions": [
+        "NFC",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0A84FF",
+          "sounds": ["./assets/notification.wav"]
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow PetID to use your location when scanning lost pet tags."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow PetID to access your photos to add pet pictures.",
+          "cameraPermission": "Allow PetID to use your camera to take pet photos."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "petid",
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      },
+      "apiUrl": "https://api.petid.app/api/v1"
+    },
+    "owner": "petid"
+  }
+}

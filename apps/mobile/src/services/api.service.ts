@@ -26,8 +26,9 @@ class ApiClient {
     body?: unknown,
     options: RequestInit = {},
   ): Promise<T> {
+    const isFormData = body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...((options.headers as Record<string, string>) ?? {}),
     };
 
@@ -38,7 +39,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? (body as any) : JSON.stringify(body)) : undefined,
       ...options,
     });
 
@@ -78,8 +79,8 @@ class ApiClient {
     return this.request<T>('GET', path);
   }
 
-  post<T>(path: string, body?: unknown) {
-    return this.request<T>('POST', path, body);
+  post<T>(path: string, body?: unknown, options?: RequestInit) {
+    return this.request<T>('POST', path, body, options);
   }
 
   patch<T>(path: string, body: unknown) {
@@ -103,3 +104,5 @@ export class ApiError extends Error {
 }
 
 export const api = new ApiClient();
+// Alias for new code
+export const apiClient = api;

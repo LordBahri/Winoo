@@ -2,22 +2,7 @@ import { create } from 'zustand';
 import * as Location from 'expo-location';
 import { nfcService } from '../services/nfc.service';
 import { api } from '../services/api.service';
-
-interface PublicPetProfile {
-  tagUid: string;
-  pet: {
-    id: string;
-    name: string;
-    species: string;
-    breed: string | null;
-    color: string | null;
-    profileImageUrl: string | null;
-    isLost: boolean;
-    lostAt: string | null;
-    ownerFirstName: string;
-    ownerMaskedPhone: string | null;
-  };
-}
+import type { PublicPetProfile } from '../types';
 
 interface ScanState {
   isScanning: boolean;
@@ -27,9 +12,8 @@ interface ScanState {
   error: string | null;
   initNfc: () => Promise<void>;
   startScan: () => Promise<void>;
-  stopScan: () => void;
-  clearResult: () => void;
-  resolveTag: (uid: string) => Promise<void>;
+  cancelScan: () => void;
+  clearScan: () => void;
 }
 
 export const useScanStore = create<ScanState>((set, get) => ({
@@ -51,38 +35,35 @@ export const useScanStore = create<ScanState>((set, get) => ({
     try {
       const uid = await nfcService.readTagUid();
       set({ lastScannedUid: uid });
-      await get().resolveTag(uid);
 
-      // Log scan event with location (best-effort)
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let coords: { latitude: number; longitude: number } | null = null;
+      const pet = await api.get<PublicPetProfile>(`/nfc-tags/${uid}/resolve`);
+      set({ scannedPet: pet, isScanning: false });
 
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-        coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      }
-
-      api.post('/tags/scan-event', {
-        tagUid: uid,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+      // Log scan event with location (best-effort, non-blocking)
+      Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
+        let coords: { latitude: number; longitude: number } | undefined;
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+          coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        }
+        api.post('/nfc-tags/scan-event', {
+          tagUid: uid,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }).catch(() => null);
       }).catch(() => null);
+
     } catch (err: any) {
-      set({ error: err.message ?? 'Scan failed' });
-    } finally {
-      set({ isScanning: false });
+      const cancelled = err?.message?.toLowerCase().includes('cancel') ||
+                        err?.message?.toLowerCase().includes('usercancel');
+      set({ error: cancelled ? null : (err.message ?? 'Scan failed'), isScanning: false });
     }
   },
 
-  stopScan: () => {
+  cancelScan: () => {
     nfcService.cancel();
     set({ isScanning: false });
   },
 
-  clearResult: () => set({ scannedPet: null, lastScannedUid: null, error: null }),
-
-  resolveTag: async (uid: string) => {
-    const pet = await api.get<PublicPetProfile>(`/tags/${uid}`);
-    set({ scannedPet: pet });
-  },
+  clearScan: () => set({ scannedPet: null, lastScannedUid: null, error: null }),
 }));
