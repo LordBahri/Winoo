@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petid-api
+  labels:
+    app: petid-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: petid-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: petid-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/v1/metrics"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: petid/api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: petid-secrets
+                  key: database-url
+            - name: REDIS_HOST
+              value: petid-redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: petid-secrets
+                  key: redis-password
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: petid-secrets
+                  key: jwt-access-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: petid-api
+spec:
+  selector:
+    app: petid-api
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: petid-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: petid-api
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: petid-api-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: petid-api

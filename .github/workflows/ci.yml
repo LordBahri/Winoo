@@ -1,0 +1,162 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ── Lint & Type Check ──────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo lint type-check
+
+  # ── Unit Tests ────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: petid_test
+          POSTGRES_USER: petid
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - name: Run DB migrations
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://petid:test_password@localhost:5432/petid_test
+        run: pnpm db:generate && pnpm db:migrate
+      - run: pnpm turbo test
+        env:
+          DATABASE_URL: postgresql://petid:test_password@localhost:5432/petid_test
+          REDIS_HOST: localhost
+          JWT_ACCESS_SECRET: test_secret_key_min_32_chars_long
+          JWT_REFRESH_SECRET: test_refresh_key_min_32_chars
+
+  # ── Build Docker Images ───────────────────────────────────────────
+  build:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push Web
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to Staging ─────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+      - name: Deploy
+        run: |
+          kubectl set image deployment/petid-api api=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }} -n petid-staging
+          kubectl set image deployment/petid-web web=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:${{ github.sha }} -n petid-staging
+          kubectl rollout status deployment/petid-api -n petid-staging --timeout=300s
+
+  # ── Deploy to Production ──────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          cd apps/api
+          npx prisma migrate deploy
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+      - name: Deploy (rolling)
+        run: |
+          kubectl set image deployment/petid-api api=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }} -n petid-production
+          kubectl set image deployment/petid-web web=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:${{ github.sha }} -n petid-production
+          kubectl rollout status deployment/petid-api -n petid-production --timeout=300s
+          kubectl rollout status deployment/petid-web -n petid-production --timeout=300s
+      - name: Notify Slack
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: "Production deploy ${{ job.status }}: ${{ github.sha }}"

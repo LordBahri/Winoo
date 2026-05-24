@@ -1,0 +1,481 @@
+// PetID — Prisma Schema
+// Database: PostgreSQL 16 with PostGIS extension
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, uuid_ossp(map: "uuid-ossp")]
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  VET
+  SHELTER
+  PET_OWNER
+}
+
+enum PetSpecies {
+  DOG
+  CAT
+  BIRD
+  RABBIT
+  HAMSTER
+  FISH
+  REPTILE
+  OTHER
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum PetVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum NfcTagType {
+  NFC
+  RFID
+}
+
+enum NfcTagStatus {
+  UNLINKED
+  ACTIVE
+  DEACTIVATED
+}
+
+enum HealthRecordType {
+  VACCINATION
+  CHECKUP
+  SURGERY
+  MEDICATION
+  ALLERGY
+  DENTAL
+  LAB_RESULT
+  OTHER
+}
+
+enum LostPetStatus {
+  ACTIVE
+  FOUND
+  CLOSED
+  EXPIRED
+}
+
+enum OrganizationType {
+  VET_CLINIC
+  SHELTER
+  RESCUE
+  BREEDER
+  PET_STORE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum PlanName {
+  FREE
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum NotificationType {
+  PET_SCANNED
+  PET_LOST
+  PET_FOUND
+  SIGHTING_REPORTED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  SYSTEM
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Users
+// ─────────────────────────────────────────────────────────────────
+
+model User {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email            String    @unique
+  passwordHash     String?   @map("password_hash")
+  role             Role      @default(PET_OWNER)
+  name             String
+  phone            String?
+  avatarUrl        String?   @map("avatar_url")
+  isEmailVerified  Boolean   @default(false) @map("is_email_verified")
+  isBanned         Boolean   @default(false) @map("is_banned")
+  stripeCustomerId String?   @unique @map("stripe_customer_id")
+  fcmToken         String?   @map("fcm_token")
+  oauthProvider    String?   @map("oauth_provider")
+  oauthProviderId  String?   @map("oauth_provider_id")
+  lastLoginAt      DateTime? @map("last_login_at")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  pets                 Pet[]
+  scanEvents           ScanEvent[]
+  lostPetReports       LostPetReport[]
+  healthRecords        HealthRecord[]        @relation("VetRecords")
+  notifications        Notification[]
+  subscription         UserSubscription?
+  userOrganizations    UserOrganization[]
+  auditLogsActor       AuditLog[]            @relation("AuditActor")
+  refreshTokens        RefreshToken[]
+  emailVerifications   EmailVerification[]
+  passwordResets       PasswordReset[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  tokenHash   String   @map("token_hash")
+  familyId    String   @map("family_id") @db.Uuid
+  isRevoked   Boolean  @default(false) @map("is_revoked")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model EmailVerification {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
+}
+
+model PasswordReset {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_resets")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Pets
+// ─────────────────────────────────────────────────────────────────
+
+model Pet {
+  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  ownerId          String        @map("owner_id") @db.Uuid
+  name             String
+  species          PetSpecies
+  breed            String?
+  color            String?
+  weightKg         Float?        @map("weight_kg")
+  dateOfBirth      DateTime?     @map("date_of_birth") @db.Date
+  gender           PetGender     @default(UNKNOWN)
+  microchipNumber  String?       @unique @map("microchip_number")
+  profileImageUrl  String?       @map("profile_image_url")
+  bio              String?
+  visibility       PetVisibility @default(PUBLIC)
+  isLost           Boolean       @default(false) @map("is_lost")
+  lostAt           DateTime?     @map("lost_at")
+  foundAt          DateTime?     @map("found_at")
+  emergencyContact Json?         @map("emergency_contact") @db.Json
+  deletedAt        DateTime?     @map("deleted_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  owner          User             @relation(fields: [ownerId], references: [id])
+  nfcTag         NfcTag?
+  healthRecords  HealthRecord[]
+  scanEvents     ScanEvent[]
+  lostReports    LostPetReport[]
+
+  @@index([ownerId])
+  @@index([isLost])
+  @@index([deletedAt])
+  @@map("pets")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NFC Tags
+// ─────────────────────────────────────────────────────────────────
+
+model NfcTag {
+  id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tagUid        String       @unique @map("tag_uid")
+  petId         String?      @unique @map("pet_id") @db.Uuid
+  tagType       NfcTagType   @default(NFC) @map("tag_type")
+  status        NfcTagStatus @default(UNLINKED)
+  activatedAt   DateTime?    @map("activated_at")
+  lastScannedAt DateTime?    @map("last_scanned_at")
+  scanCount     Int          @default(0) @map("scan_count")
+  batchId       String?      @map("batch_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  pet        Pet?        @relation(fields: [petId], references: [id])
+  scanEvents ScanEvent[]
+
+  @@index([tagUid])
+  @@index([status])
+  @@map("nfc_tags")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Scan Events
+// ─────────────────────────────────────────────────────────────────
+
+model ScanEvent {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tagUid        String   @map("tag_uid")
+  tagId         String?  @map("tag_id") @db.Uuid
+  petId         String?  @map("pet_id") @db.Uuid
+  scannerUserId String?  @map("scanner_user_id") @db.Uuid
+  latitude      Float?
+  longitude     Float?
+  city          String?
+  country       String?
+  deviceType    String?  @map("device_type")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tag         NfcTag? @relation(fields: [tagId], references: [id])
+  pet         Pet?    @relation(fields: [petId], references: [id])
+  scannerUser User?   @relation(fields: [scannerUserId], references: [id])
+
+  @@index([tagUid])
+  @@index([petId])
+  @@index([createdAt])
+  @@map("scan_events")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Health Records
+// ─────────────────────────────────────────────────────────────────
+
+model HealthRecord {
+  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  petId       String           @map("pet_id") @db.Uuid
+  vetId       String?          @map("vet_id") @db.Uuid
+  recordType  HealthRecordType @map("record_type")
+  title       String
+  date        DateTime         @db.Date
+  notes       String?
+  attachments Json?            @db.Json
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  pet Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet User? @relation("VetRecords", fields: [vetId], references: [id])
+
+  @@index([petId])
+  @@index([date])
+  @@map("health_records")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Lost Pet Reports
+// ─────────────────────────────────────────────────────────────────
+
+model LostPetReport {
+  id                  String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  petId               String        @map("pet_id") @db.Uuid
+  reportedById        String        @map("reported_by_id") @db.Uuid
+  lastSeenLatitude    Float?        @map("last_seen_latitude")
+  lastSeenLongitude   Float?        @map("last_seen_longitude")
+  lastSeenAddress     String?       @map("last_seen_address")
+  lastSeenAt          DateTime?     @map("last_seen_at")
+  description         String?
+  rewardAmount        Float?        @map("reward_amount")
+  rewardCurrency      String?       @default("USD") @map("reward_currency")
+  status              LostPetStatus @default(ACTIVE)
+  contactPhone        String?       @map("contact_phone")
+  contactEmail        String?       @map("contact_email")
+  images              Json?         @db.Json
+  foundAt             DateTime?     @map("found_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  pet          Pet              @relation(fields: [petId], references: [id])
+  reportedBy   User             @relation(fields: [reportedById], references: [id])
+  sightings    LostPetSighting[]
+
+  @@index([status])
+  @@index([petId])
+  @@map("lost_pet_reports")
+}
+
+model LostPetSighting {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportId         String   @map("report_id") @db.Uuid
+  reporterName     String?  @map("reporter_name")
+  reporterContact  String?  @map("reporter_contact")
+  latitude         Float?
+  longitude        Float?
+  address          String?
+  sightedAt        DateTime @map("sighted_at")
+  notes            String?
+  imageUrl         String?  @map("image_url")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  report LostPetReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("lost_pet_sightings")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Organizations
+// ─────────────────────────────────────────────────────────────────
+
+model Organization {
+  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  type        OrganizationType
+  address     String?
+  city        String?
+  country     String?
+  phone       String?
+  email       String?
+  website     String?
+  isVerified  Boolean          @default(false) @map("is_verified")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  members UserOrganization[]
+
+  @@map("organizations")
+}
+
+model UserOrganization {
+  userId  String @map("user_id") @db.Uuid
+  orgId   String @map("org_id") @db.Uuid
+  role    String @default("STAFF")
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([userId, orgId])
+  @@map("user_organizations")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Subscriptions & Billing
+// ─────────────────────────────────────────────────────────────────
+
+model SubscriptionPlan {
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                 PlanName @unique
+  priceMonthly         Float    @map("price_monthly")
+  priceYearly          Float    @map("price_yearly")
+  maxPets              Int      @map("max_pets")
+  maxTags              Int      @map("max_tags")
+  features             Json     @db.Json
+  stripePriceIdMonthly String?  @map("stripe_price_id_monthly")
+  stripePriceIdYearly  String?  @map("stripe_price_id_yearly")
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  subscriptions UserSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model UserSubscription {
+  id                   String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId               String             @unique @map("user_id") @db.Uuid
+  planId               String             @map("plan_id") @db.Uuid
+  status               SubscriptionStatus @default(TRIALING)
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  trialEndsAt          DateTime?          @map("trial_ends_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user User             @relation(fields: [userId], references: [id])
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@map("user_subscriptions")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Notifications
+// ─────────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?            @db.Json
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Audit Logs
+// ─────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  actorId      String?  @map("actor_id") @db.Uuid
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  oldValue     Json?    @map("old_value") @db.Json
+  newValue     Json?    @map("new_value") @db.Json
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
