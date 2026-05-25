@@ -1,4 +1,5 @@
 FROM node:20-alpine AS base
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # ── Development stage (hot-reload, no build step) ─────────────────
@@ -39,7 +40,7 @@ RUN pnpm build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-RUN addgroup -g 1001 nodejs && adduser -S nestjs -u 1001
+RUN apk add --no-cache openssl && addgroup -g 1001 nodejs && adduser -S nestjs -u 1001
 
 ENV NODE_ENV=production
 
