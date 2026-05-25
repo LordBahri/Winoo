@@ -7,18 +7,23 @@ import { Resend } from 'resend';
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly resend: Resend;
+  private resend: Resend | null = null;
   private readonly fromEmail: string;
 
   constructor(
     private readonly config: ConfigService,
     @InjectQueue('notifications') private readonly notifQueue: Queue,
   ) {
-    this.resend = new Resend(config.get('RESEND_API_KEY'));
+    const resendKey = config.get<string>('RESEND_API_KEY');
+    if (resendKey) this.resend = new Resend(resendKey);
     this.fromEmail = config.get('EMAIL_FROM', 'noreply@petid.app');
   }
 
   async sendEmailVerification(user: { email: string; name: string }, token?: string) {
+    if (!this.resend) {
+      this.logger.warn('Resend not configured, skipping verification email');
+      return;
+    }
     const verifyUrl = `${this.config.get('FRONTEND_URL')}/auth/verify-email?token=${token ?? 'demo'}`;
 
     await this.resend.emails.send({
@@ -35,6 +40,10 @@ export class NotificationsService {
   }
 
   async sendPasswordReset(user: { email: string; name: string }, token: string) {
+    if (!this.resend) {
+      this.logger.warn('Resend not configured, skipping password reset email');
+      return;
+    }
     const resetUrl = `${this.config.get('FRONTEND_URL')}/auth/reset-password?token=${token}`;
 
     await this.resend.emails.send({
