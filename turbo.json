@@ -25,13 +25,16 @@
       "cache": false
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["db:generate"]
     },
     "db:migrate:dev": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["db:generate"]
     },
     "db:seed": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["db:generate"]
     }
   }
 }
