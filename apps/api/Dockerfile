@@ -8,6 +8,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/api/prisma/ ./apps/api/prisma/
 COPY packages/ ./packages/
 
 RUN pnpm install --frozen-lockfile
@@ -15,7 +16,6 @@ RUN pnpm install --frozen-lockfile
 COPY apps/api/ ./apps/api/
 
 WORKDIR /app/apps/api
-RUN pnpm db:generate
 
 EXPOSE 3000 9229
 CMD ["pnpm", "start:dev"]
@@ -26,6 +26,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/api/prisma/ ./apps/api/prisma/
 COPY packages/ ./packages/
 
 RUN pnpm install --frozen-lockfile
@@ -33,7 +34,6 @@ RUN pnpm install --frozen-lockfile
 COPY apps/api/ ./apps/api/
 
 WORKDIR /app/apps/api
-RUN pnpm db:generate
 RUN pnpm build
 
 # ── Production runner ──────────────────────────────────────────────
