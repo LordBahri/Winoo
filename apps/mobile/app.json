@@ -79,11 +79,7 @@
     },
     "scheme": "petid",
     "extra": {
-      "eas": {
-        "projectId": "your-eas-project-id"
-      },
       "apiUrl": "https://api.petid.app/api/v1"
-    },
-    "owner": "petid"
+    }
   }
 }
