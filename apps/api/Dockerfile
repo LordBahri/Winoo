@@ -19,7 +19,7 @@ COPY apps/api/ ./apps/api/
 WORKDIR /app/apps/api
 
 EXPOSE 3000 9229
-CMD ["pnpm", "start:dev"]
+CMD ["nest", "start", "--watch"]
 
 # ── Builder stage ──────────────────────────────────────────────────
 FROM base AS builder
