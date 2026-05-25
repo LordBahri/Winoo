@@ -36,7 +36,7 @@ interface SightingJobData {
 })
 export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
-  private readonly resend: Resend;
+  private resend: Resend | null = null;
   private readonly fromEmail: string;
   private firebaseInitialized = false;
 
@@ -45,7 +45,8 @@ export class NotificationProcessor extends WorkerHost {
     private readonly config: ConfigService,
   ) {
     super();
-    this.resend = new Resend(config.get<string>('RESEND_API_KEY'));
+    const resendKey = config.get<string>('RESEND_API_KEY');
+    if (resendKey) this.resend = new Resend(resendKey);
     this.fromEmail = config.get<string>('EMAIL_FROM', 'noreply@petid.app');
     this.initFirebase();
   }
@@ -291,6 +292,10 @@ export class NotificationProcessor extends WorkerHost {
   // ── Email helper ──────────────────────────────────────────────────────────
 
   private async sendEmail(opts: { to: string; subject: string; html: string }) {
+    if (!this.resend) {
+      this.logger.warn('Resend not configured, skipping email');
+      return;
+    }
     const { error } = await this.resend.emails.send({
       from: this.fromEmail,
       to: opts.to,
