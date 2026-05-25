@@ -6,7 +6,7 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 FROM base AS dev
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* .npmrc* ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/prisma/ ./apps/api/prisma/
 COPY packages/ ./packages/
@@ -24,7 +24,7 @@ CMD ["pnpm", "start:dev"]
 FROM base AS builder
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* .npmrc* ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/prisma/ ./apps/api/prisma/
 COPY packages/ ./packages/
