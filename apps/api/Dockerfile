@@ -1,6 +1,7 @@
 FROM node:20-alpine AS base
 RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN npm install -g @nestjs/cli@10
 
 # ── Development stage (hot-reload, no build step) ─────────────────
 FROM base AS dev
