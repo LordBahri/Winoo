@@ -72,11 +72,9 @@ import stripeConfig from './config/stripe.config';
     RedisModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        config: {
-          host: config.get('redis.host'),
-          port: config.get('redis.port'),
-          password: config.get('redis.password'),
-        },
+        host: config.get('redis.host'),
+        port: config.get<number>('redis.port'),
+        password: config.get('redis.password'),
       }),
     }),
 
