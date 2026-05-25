@@ -6,7 +6,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bullmq';
-import { Reflector } from '@nestjs/core';
+import { RedisModule } from '@nestjs-modules/ioredis';
 import * as redisStore from 'cache-manager-ioredis';
 
 import { DatabaseModule } from './database/database.module';
@@ -64,6 +64,18 @@ import stripeConfig from './config/stripe.config';
           // Skip throttling for health checks
           const req = ctx.switchToHttp().getRequest();
           return req.url?.includes('/health');
+        },
+      }),
+    }),
+
+    // ── IORedis client (global, used via @InjectRedis()) ──────────
+    RedisModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        config: {
+          host: config.get('redis.host'),
+          port: config.get('redis.port'),
+          password: config.get('redis.password'),
         },
       }),
     }),
