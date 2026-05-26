@@ -10,7 +10,7 @@ import { Badge } from '@components/ui/Badge';
 import { Card } from '@components/ui/Card';
 import { Button } from '@components/ui/Button';
 import { Skeleton } from '@components/ui/Skeleton';
-import type { PublicPetProfile } from '@types/index';
+import type { PublicPetProfile } from '@/types';
 
 export default function LostPetPublicScreen() {
   const { tagUid } = useLocalSearchParams<{ tagUid: string }>();
@@ -144,7 +144,7 @@ export default function LostPetPublicScreen() {
           {emergencyContacts && emergencyContacts.length > 0 && (
             <Card style={{ marginBottom: 16 }}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Emergency Contacts</Text>
-              {emergencyContacts.map((contact, i) => (
+              {emergencyContacts.map((contact: { name: string; phoneMasked: string }, i: number) => (
                 <View key={i} style={[styles.row, { borderBottomColor: colors.separator }]}>
                   <Text style={[styles.rowLabel, { color: colors.textTertiary }]}>{contact.name}</Text>
                   <Text style={[styles.rowValue, { color: colors.text }]}>{contact.phoneMasked}</Text>
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   hero: { position: 'relative', height: 320 },
   heroImg: { width: '100%', height: 320 },
   heroPlaceholder: { width: '100%', height: 320, alignItems: 'center', justifyContent: 'center' },
-  heroGradient: { ...StyleSheet.absoluteFillObject, background: 'transparent', backgroundColor: 'rgba(0,0,0,0.35)' },
+  heroGradient: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   heroInfo: { position: 'absolute', bottom: 20, left: 20 },
   heroName: { color: '#fff', fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
   heroBreed: { color: 'rgba(255,255,255,0.85)', fontSize: 16, marginBottom: 8 },

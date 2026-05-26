@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@services/api.service';
-import type { Notification, PaginatedResponse } from '@types/index';
+import type { Notification, PaginatedResponse } from '@/types';
 
 const NOTIF_KEY = ['notifications'] as const;
 

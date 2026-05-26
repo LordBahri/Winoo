@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@hooks/useTheme';
 import { Badge } from '@components/ui/Badge';
-import type { HealthRecord } from '@types/index';
+import type { HealthRecord } from '@/types';
 
 const TYPE_CONFIG = {
   VACCINATION: { emoji: '💉', label: 'Vaccination', variant: 'success' as const },

@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useTheme } from '@hooks/useTheme';
-import type { Pet } from '@types/index';
+import type { Pet } from '@/types';
 
 const SPECIES_EMOJI: Record<string, string> = {
   DOG: '🐶', CAT: '🐱', BIRD: '🐦', RABBIT: '🐰', FISH: '🐟', REPTILE: '🦎', OTHER: '🐾',

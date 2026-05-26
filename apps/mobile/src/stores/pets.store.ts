@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Pet } from '@types/index';
+import type { Pet } from '@/types';
 
 interface PetsState {
   selectedPetId: string | null;

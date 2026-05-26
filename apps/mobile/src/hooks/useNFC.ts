@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { nfcService } from '@services/nfc.service';
 import { apiClient } from '@services/api.service';
-import type { PublicPetProfile } from '@types/index';
+import type { PublicPetProfile } from '@/types';
 
 interface NFCState {
   isScanning: boolean;
@@ -21,7 +21,8 @@ export function useNFC() {
   const scan = useCallback(async () => {
     setState(s => ({ ...s, isScanning: true, error: null }));
     try {
-      const uid = await nfcService.readTagUid();
+      const result = await nfcService.scanTag();
+      const uid = result.uid;
       if (!uid) {
         setState(s => ({ ...s, isScanning: false, error: 'Could not read tag' }));
         return null;

@@ -65,8 +65,11 @@ export function Sidebar() {
             <p className="mb-1 px-4 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
               {label}
             </p>
-            {items.map(({ href, label: itemLabel, icon: Icon, count, alert }) => {
-              const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));
+            {items.map((item) => {
+              const { href, label: itemLabel, icon: Icon } = item;
+              const count = 'count' in item ? item.count : undefined;
+              const alert = 'alert' in item ? item.alert : undefined;
+              const isActive = pathname === href || (href !== '/' && (pathname?.startsWith(href) ?? false));
               return (
                 <Link
                   key={href}
