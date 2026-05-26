@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import * as Location from 'expo-location';
-import { nfcService } from '../services/nfc.service';
+import { nfcService, type TagScanResult } from '../services/nfc.service';
 import { api } from '../services/api.service';
 import type { PublicPetProfile } from '../types';
 
 interface ScanState {
   isScanning: boolean;
   isNfcSupported: boolean;
-  lastScannedUid: string | null;
+  lastTag: TagScanResult | null;
   scannedPet: PublicPetProfile | null;
+  cmacStatus: 'valid' | 'invalid' | 'not_required' | null;
   error: string | null;
   initNfc: () => Promise<void>;
   startScan: () => Promise<void>;
@@ -19,8 +20,9 @@ interface ScanState {
 export const useScanStore = create<ScanState>((set, get) => ({
   isScanning: false,
   isNfcSupported: false,
-  lastScannedUid: null,
+  lastTag: null,
   scannedPet: null,
+  cmacStatus: null,
   error: null,
 
   initNfc: async () => {
@@ -30,33 +32,60 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   startScan: async () => {
     if (get().isScanning) return;
-    set({ isScanning: true, error: null, scannedPet: null });
+    set({ isScanning: true, error: null, scannedPet: null, cmacStatus: null });
 
     try {
-      const uid = await nfcService.readTagUid();
-      set({ lastScannedUid: uid });
+      const tag = await nfcService.scanTag({
+        promptMessage: 'Hold your phone near the pet tag',
+      });
+      set({ lastTag: tag });
 
-      const pet = await api.get<PublicPetProfile>(`/nfc-tags/${uid}/resolve`);
-      set({ scannedPet: pet, isScanning: false });
-
-      // Log scan event with location (best-effort, non-blocking)
-      Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
-        let coords: { latitude: number; longitude: number } | undefined;
+      // Best-effort location (non-blocking)
+      let coords: { latitude: number; longitude: number } | undefined;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
           coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         }
-        api.post('/nfc-tags/scan-event', {
-          tagUid: uid,
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }).catch(() => null);
-      }).catch(() => null);
+      } catch {
+        /* location is optional */
+      }
 
+      // Prefer SUN-validated recovery endpoint when the tag exposes SUN params
+      if (tag.sun) {
+        const qs = new URLSearchParams({
+          picc_data: tag.sun.piccData,
+          cmac: tag.sun.cmac,
+          ...(coords && { latitude: String(coords.latitude), longitude: String(coords.longitude) }),
+        });
+        const result = await api.get<{
+          publicId: string;
+          cmacStatus: 'valid' | 'invalid' | 'not_required';
+          pet: PublicPetProfile | null;
+        }>(`/tags/recover/${tag.sun.publicId}?${qs}`);
+
+        set({
+          scannedPet: result.pet,
+          cmacStatus: result.cmacStatus,
+          isScanning: false,
+        });
+        return;
+      }
+
+      // Fallback: legacy UID-based lookup
+      const pet = await api.get<PublicPetProfile>(`/tags/${tag.uid}`);
+      set({ scannedPet: pet, cmacStatus: 'not_required', isScanning: false });
+
+      api.post('/tags/scan-event', {
+        tagUid: tag.uid,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }).catch(() => null);
     } catch (err: any) {
-      const cancelled = err?.message?.toLowerCase().includes('cancel') ||
-                        err?.message?.toLowerCase().includes('usercancel');
-      set({ error: cancelled ? null : (err.message ?? 'Scan failed'), isScanning: false });
+      const cancelled = err?.message?.toLowerCase?.().includes('cancel') ||
+                        err?.message?.toLowerCase?.().includes('usercancel');
+      set({ error: cancelled ? null : (err?.message ?? 'Scan failed'), isScanning: false });
     }
   },
 
@@ -65,5 +94,5 @@ export const useScanStore = create<ScanState>((set, get) => ({
     set({ isScanning: false });
   },
 
-  clearScan: () => set({ scannedPet: null, lastScannedUid: null, error: null }),
+  clearScan: () => set({ scannedPet: null, lastTag: null, cmacStatus: null, error: null }),
 }));

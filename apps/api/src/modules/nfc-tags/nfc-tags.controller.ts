@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -18,6 +19,8 @@ import { Throttle } from '@nestjs/throttler';
 import { NfcTagsService } from './nfc-tags.service';
 import { LinkTagDto } from './dto/link-tag.dto';
 import { ScanEventDto } from './dto/scan-event.dto';
+import { RecoverTagDto } from './dto/recover-tag.dto';
+import { ContactRequestDto } from './dto/contact-request.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -29,7 +32,38 @@ import { AuthUser } from '../../common/types/auth-user.type';
 export class NfcTagsController {
   constructor(private readonly nfcTagsService: NfcTagsService) {}
 
-  // ── Public: resolve tag → pet profile (cached 30 s) ───────────
+  // ── Public: recover tag via publicId (SUN-validated) ──────────────
+  // This is THE production scan endpoint — called by the web recovery page
+  // when a finder taps a tag with their phone.
+  @Public()
+  @Get('recover/:publicId')
+  @Throttle({ medium: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'PUBLIC — recover tag with SUN validation, returns finder-facing pet data' })
+  recoverTag(
+    @Param('publicId') publicId: string,
+    @Query() dto: RecoverTagDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.nfcTagsService.recoverTag(publicId, dto, ip, userAgent);
+  }
+
+  // ── Public: finder contact request (rate-limited) ─────────────────
+  @Public()
+  @Post('recover/:publicId/contact')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ medium: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({ summary: 'PUBLIC — send a finder→owner contact request' })
+  contactOwner(
+    @Param('publicId') publicId: string,
+    @Body() dto: ContactRequestDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.nfcTagsService.createContactRequest(publicId, dto, ip, userAgent);
+  }
+
+  // ── Public: resolve tag by hardware UID (legacy, cached 30 s) ─────
   @Public()
   @Get(':uid')
   @Throttle({ medium: { limit: 30, ttl: 60000 } })

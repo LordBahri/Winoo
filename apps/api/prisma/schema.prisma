@@ -236,10 +236,15 @@ model Pet {
 
 model NfcTag {
   id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  publicId      String       @unique @default(cuid()) @map("public_id")
   tagUid        String       @unique @map("tag_uid")
   petId         String?      @unique @map("pet_id") @db.Uuid
   tagType       NfcTagType   @default(NFC) @map("tag_type")
+  tagModel      String?      @map("tag_model")
   status        NfcTagStatus @default(UNLINKED)
+  cmacEnabled   Boolean      @default(false) @map("cmac_enabled")
+  cmacKey       String?      @map("cmac_key")
+  sunCounter    Int          @default(0) @map("sun_counter")
   activatedAt   DateTime?    @map("activated_at")
   lastScannedAt DateTime?    @map("last_scanned_at")
   scanCount     Int          @default(0) @map("scan_count")
@@ -247,12 +252,39 @@ model NfcTag {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  pet        Pet?        @relation(fields: [petId], references: [id])
-  scanEvents ScanEvent[]
+  pet             Pet?             @relation(fields: [petId], references: [id])
+  scanEvents      ScanEvent[]
+  contactRequests ContactRequest[]
 
   @@index([tagUid])
+  @@index([publicId])
   @@index([status])
   @@map("nfc_tags")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Contact Requests (rate-limited finder → owner messages)
+// ─────────────────────────────────────────────────────────────────
+
+model ContactRequest {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tagId        String   @map("tag_id") @db.Uuid
+  finderName   String?  @map("finder_name")
+  finderPhone  String?  @map("finder_phone")
+  finderEmail  String?  @map("finder_email")
+  message      String?
+  latitude     Float?
+  longitude    Float?
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  deliveredAt  DateTime? @map("delivered_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tag NfcTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@index([tagId])
+  @@index([createdAt])
+  @@map("contact_requests")
 }
 
 // ─────────────────────────────────────────────────────────────────
