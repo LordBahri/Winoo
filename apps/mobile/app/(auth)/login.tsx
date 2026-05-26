@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,18 +23,15 @@ const schema = z.object({
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
-
 type FormData = z.infer<typeof schema>;
 
 export default function LoginScreen() {
   const { colors } = useTheme();
   const { login, isLoading, error } = useAuthStore();
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
 
   const onSubmit = async (data: FormData) => {
     const ok = await login(data.email, data.password);
@@ -42,24 +40,25 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.kav}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kav}>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <Text style={styles.logo}>🐾</Text>
+          {/* Logo & heading */}
+          <Animated.View entering={FadeInDown.delay(0).duration(500).springify()} style={styles.header}>
+            <View style={[styles.logoWrap, { backgroundColor: colors.primary + '15' }]}>
+              <Text style={styles.logoEmoji}>🐾</Text>
+            </View>
             <Text style={[styles.title, { color: colors.text }]}>Welcome back</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Sign in to manage your pets
             </Text>
-          </View>
+          </Animated.View>
 
-          <View style={styles.form}>
+          {/* Form */}
+          <Animated.View entering={FadeInDown.delay(120).duration(450).springify()} style={styles.form}>
             <Controller
               control={control}
               name="email"
@@ -101,27 +100,32 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {error && (
-              <View style={[styles.errorBox, { backgroundColor: colors.danger + '15' }]}>
+              <Animated.View
+                entering={FadeInDown.duration(300)}
+                style={[styles.errorBox, { backgroundColor: colors.danger + '12', borderColor: colors.danger + '25' }]}
+              >
+                <Text style={styles.errorIcon}>⚠️</Text>
                 <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-              </View>
+              </Animated.View>
             )}
 
             <Button
-              label="Sign In"
+              label={isLoading ? 'Signing in…' : 'Sign In'}
               onPress={handleSubmit(onSubmit)}
               loading={isLoading}
-              style={{ marginTop: 8 }}
+              style={styles.signInBtn}
             />
-          </View>
+          </Animated.View>
 
-          <View style={styles.footer}>
+          {/* Footer */}
+          <Animated.View entering={FadeInDown.delay(220).duration(400)} style={styles.footer}>
             <Text style={[styles.footerText, { color: colors.textSecondary }]}>
               Don't have an account?{' '}
             </Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
               <Text style={[styles.footerLink, { color: colors.primary }]}>Create one</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -131,17 +135,44 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   kav: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 48 },
-  header: { alignItems: 'center', marginBottom: 40 },
-  logo: { fontSize: 56, marginBottom: 16 },
-  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, marginBottom: 8 },
-  subtitle: { fontSize: 17, textAlign: 'center' },
+  scroll: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 32 },
+
+  header: { alignItems: 'center', marginBottom: 44 },
+  logoWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  logoEmoji: { fontSize: 46 },
+  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.7, marginBottom: 8 },
+  subtitle: { fontSize: 16, textAlign: 'center' },
+
   form: { gap: 0 },
-  forgotWrap: { alignSelf: 'flex-end', marginBottom: 8, marginTop: -8 },
+  forgotWrap: { alignSelf: 'flex-end', marginBottom: 12, marginTop: -4 },
   forgot: { fontSize: 14, fontWeight: '600' },
-  errorBox: { borderRadius: 10, padding: 12, marginBottom: 12 },
-  errorText: { fontSize: 14, fontWeight: '500' },
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 'auto', paddingVertical: 32 },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  errorIcon: { fontSize: 16 },
+  errorText: { fontSize: 14, fontWeight: '500', flex: 1 },
+  signInBtn: { marginTop: 4 },
+
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingVertical: 36,
+  },
   footerText: { fontSize: 16 },
-  footerLink: { fontSize: 16, fontWeight: '600' },
+  footerLink: { fontSize: 16, fontWeight: '700' },
 });
