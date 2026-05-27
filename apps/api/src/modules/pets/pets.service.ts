@@ -49,12 +49,16 @@ export class PetsService {
     });
 
     const maxPets = user?.subscription?.plan?.maxPets ?? 1;
-    if (petCount >= maxPets) {
+    if (maxPets !== -1 && petCount >= maxPets) {
       throw new BadRequestException(`Your plan allows a maximum of ${maxPets} pets`);
     }
 
     return this.prisma.pet.create({
-      data: { ...dto, ownerId },
+      data: {
+        ...dto,
+        ownerId,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+      },
     });
   }
 
@@ -75,7 +79,10 @@ export class PetsService {
   async update(id: string, user: AuthUser, dto: UpdatePetDto) {
     const pet = await this.findOneRaw(id);
     this.assertAccess(pet.ownerId, user);
-    return this.prisma.pet.update({ where: { id }, data: dto });
+    return this.prisma.pet.update({
+      where: { id },
+      data: { ...dto, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined },
+    });
   }
 
   async remove(id: string, user: AuthUser) {
