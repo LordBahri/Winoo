@@ -175,6 +175,6 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   getConnectedCount(): number {
-    return this.server.sockets.sockets.size;
+    return this.server?.sockets?.sockets?.size ?? 0;
   }
 }
