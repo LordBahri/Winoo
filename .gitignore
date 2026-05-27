@@ -46,3 +46,11 @@ pnpm-debug.log*
 
 # Misc
 *.tsbuildinfo
+
+# Redis persistence
+dump.rdb
+
+# Compiled JS artifacts outside dist/ (e.g. jest.config.js emitted to project root)
+apps/api/jest.config.js
+apps/api/jest.config.js.map
+apps/api/jest.config.d.ts
