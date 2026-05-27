@@ -29,7 +29,7 @@ export function useCreatePet() {
       if (photoUri) {
         const form = new FormData();
         form.append('file', { uri: photoUri, name: 'photo.jpg', type: 'image/jpeg' } as any);
-        const upload = await apiClient.post<{ url: string }>('/upload', form, {
+        const upload = await apiClient.post<{ url: string }>('/upload/image', form, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         photoUrl = upload.url;
@@ -46,7 +46,7 @@ export function useMarkPetLost() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ petId, description }: { petId: string; description: string }) =>
-      apiClient.post(`/pets/${petId}/lost`, { description }),
+      apiClient.post(`/pets/${petId}/mark-lost`, { description }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PETS_KEY });
     },
@@ -56,7 +56,7 @@ export function useMarkPetLost() {
 export function useMarkPetFound() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (petId: string) => apiClient.patch(`/pets/${petId}/found`, {}),
+    mutationFn: (petId: string) => apiClient.post(`/pets/${petId}/mark-found`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PETS_KEY });
     },

@@ -41,7 +41,7 @@ class PushNotificationsService {
 
   private async saveFcmToken(token: string): Promise<void> {
     try {
-      await apiClient.post('/notifications/register-token', { token, platform: Platform.OS });
+      await apiClient.patch('/users/me/fcm-token', { fcmToken: token });
     } catch {
       // Silently fail — token will be registered next login
     }

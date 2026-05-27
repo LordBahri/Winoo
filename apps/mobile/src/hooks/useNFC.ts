@@ -31,7 +31,7 @@ export function useNFC() {
 
       // Resolve to pet profile
       try {
-        const profile = await apiClient.get<PublicPetProfile>(`/nfc-tags/${uid}/resolve`);
+        const profile = await apiClient.get<PublicPetProfile>(`/tags/${uid}`);
         setState(s => ({ ...s, isScanning: false, petProfile: profile }));
         return profile;
       } catch {
