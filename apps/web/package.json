@@ -1,0 +1,43 @@
+{
+  "name": "@petid/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@petid/shared": "workspace:*",
+    "@tanstack/react-query": "^5.45.1",
+    "@tanstack/react-table": "^8.17.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.395.0",
+    "next": "^14.2.4",
+    "next-auth": "^4.24.14",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.52.1",
+    "react-leaflet": "^4.2.1",
+    "recharts": "^2.12.7",
+    "socket.io-client": "^4.7.5",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.12",
+    "@types/node": "^20.14.2",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5"
+  }
+}
